@@ -5,19 +5,22 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
 import android.preference.PreferenceManager
+import android.view.View
 import android.widget.Button
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.gson.GsonBuilder
 import okhttp3.*
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import java.io.IOException
-
 
 
 class MainActivity : AppCompatActivity() {
@@ -27,9 +30,10 @@ class MainActivity : AppCompatActivity() {
     private var longitude: Double? = null
     private lateinit var map: MapView
     private lateinit var standortBestaetigen: Button
-    private lateinit var radiobtns: Button
+    private lateinit var radiobtns: RadioGroup
     private val client = OkHttpClient()
-    private lateinit var nearestStations: String
+    lateinit var mvgResponse: MVGResponse
+    var test: Boolean = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +41,8 @@ class MainActivity : AppCompatActivity() {
         Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this))
         setContentView(R.layout.activity_main)
         standortBestaetigen = findViewById(R.id.select_location_btn)
+        radiobtns = findViewById(R.id.radiobtns)
+
 
         //Map erstellen
         map = findViewById<MapView>(R.id.map)
@@ -65,19 +71,39 @@ class MainActivity : AppCompatActivity() {
             .url(MVGUrl)
             .build()
 
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {}
-            override fun onResponse(call: Call, response: Response) =
-                setResponse(response.body()?.string())
-        })
+//        client.newCall(request).enqueue(object : Callback {
+//            override fun onFailure(call: Call, e: IOException) {}
+//            override fun onResponse(call: Call, response: Response) =
+//                setResponse(response.body()?.string())
+//        })
 
+        client.newCall(request).enqueue(object: Callback {
+            override fun onResponse(call: Call?, response: Response?) {
+                val body = response?.body()?.string()
+                print(body)
+
+                val gson = GsonBuilder().create()
+
+                mvgResponse = gson.fromJson(body, MVGResponse::class.java)
+                updateRadioButtons()
+
+            }
+            override fun onFailure(call: Call, e: IOException) {}
+        })
     }
 
+    private fun updateRadioButtons() {
 
-    private fun setResponse(jsonData: String?) {
-        print(jsonData)
-        //TODO JSON Parsen und Haltestellen filtern
-        // https://github.com/cbeust/klaxon
+            runOnUiThread {
+                for(station in mvgResponse.locations){
+                    val radioBtn = RadioButton(this)
+                    radioBtn.text = station.name
+                    radiobtns.addView(radioBtn)
+                }
+                standortBestaetigen.visibility = View.INVISIBLE
+                radiobtns.visibility = View.VISIBLE
+            }
+
     }
 
 
@@ -136,3 +162,6 @@ class MainActivity : AppCompatActivity() {
 
     }
 }
+
+class MVGResponse(val locations: List<Station>)
+class Station(val name: String, val distance: Int, val products: List<String>)
